@@ -97,15 +97,15 @@ export interface EngineConfig {
 
 export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   midjourney: {
-    baseUrl: 'https://api.geekai.pro',
-    apiKey: 'sk-1nMCUT5v0g3UYYDHu1GZuQu3vansG9uyFfzBHlA0LECTMCyW',
+    baseUrl: import.meta.env.VITE_MJ_BASE_URL || 'https://api.geekai.pro',
+    apiKey: import.meta.env.VITE_MJ_API_KEY || '',
   },
   doubao: {
-    apiKey: 'd2a034d9-f0b8-4b67-b9f5-661be35d8048',
+    apiKey: import.meta.env.VITE_DOUBAO_API_KEY || '',
   },
   nanobanana: {
-    baseUrl: 'https://api.apiyi.com',
-    apiKey: 'sk-l0UTZWcBsvI1qHMAF6Ee88C18dC14e68944688286eD91b7b',
+    baseUrl: import.meta.env.VITE_NANOBANANA_BASE_URL || 'https://api.apiyi.com',
+    apiKey: import.meta.env.VITE_NANOBANANA_API_KEY || '',
   },
 }
 

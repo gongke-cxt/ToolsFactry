@@ -11,3 +11,4 @@ bin/
 *-screenshot/
 nul
 vibe_images/
+.env
