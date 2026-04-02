@@ -1,0 +1,13 @@
+node_modules
+dist
+dist-ssr
+dist-server
+*.local
+.DS_Store
+downloads/
+bin/
+*.tsbuildinfo
+*-screenshot.png
+*-screenshot/
+nul
+vibe_images/
