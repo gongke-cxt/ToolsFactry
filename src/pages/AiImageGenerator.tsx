@@ -5,6 +5,7 @@ import { useAiImage } from '@/hooks/useAiImage'
 import { PromptPanel } from '@/components/ai-image/PromptPanel'
 import { EngineParams } from '@/components/ai-image/EngineParams'
 import { TaskCard } from '@/components/ai-image/TaskCard'
+import { ImagePreviewModal } from '@/components/ai-image/ImagePreviewModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -13,6 +14,8 @@ import { ImageIcon, Trash2, Wand2 } from 'lucide-react'
 export function AiImageGenerator() {
   const [engine, setEngine] = useState<ImageEngine>('midjourney')
   const [params, setParams] = useState<Record<string, string>>({})
+  const [referenceImage, setReferenceImage] = useState<string | null>(null)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   const {
     tasks,
@@ -36,9 +39,9 @@ export function AiImageGenerator() {
         botType: (params.botType as 'MID_JOURNEY' | 'niji') || 'MID_JOURNEY',
       })
     } else {
-      await generate(engine, prompt, params)
+      await generate(engine, prompt, { ...params, referenceImage: referenceImage || undefined })
     }
-  }, [engine, params, generate, generateMidjourney])
+  }, [engine, params, referenceImage, generate, generateMidjourney])
 
   const handleDescribe = useCallback(async (base64: string) => {
     await mjDescribe(base64)
@@ -82,7 +85,7 @@ export function AiImageGenerator() {
             {ENGINE_OPTIONS.map(opt => (
               <button
                 key={opt.id}
-                onClick={() => { setEngine(opt.id); setParams({}) }}
+                onClick={() => { setEngine(opt.id); setParams({}); setReferenceImage(null) }}
                 className={cn(
                   'w-full text-left px-3 py-2.5 rounded-lg border transition-smooth',
                   engine === opt.id
@@ -104,6 +107,8 @@ export function AiImageGenerator() {
             <PromptPanel
               engine={engine}
               isGenerating={isGenerating}
+              referenceImage={referenceImage}
+              onReferenceChange={setReferenceImage}
               onGenerate={handleGenerate}
               onDescribe={handleDescribe}
             />
@@ -115,7 +120,11 @@ export function AiImageGenerator() {
       {activeTask?.imageUrl && (
         <Card>
           <CardContent className="p-4">
-            <div className="relative flex items-center justify-center bg-muted/20 rounded-lg overflow-hidden" style={{ maxHeight: '70vh' }}>
+            <div
+              className="relative flex items-center justify-center bg-muted/20 rounded-lg overflow-hidden cursor-zoom-in"
+              style={{ maxHeight: '70vh' }}
+              onClick={() => setPreviewImage(activeTask.imageUrl)}
+            >
               <img
                 src={activeTask.imageUrl}
                 alt={activeTask.prompt}
@@ -176,6 +185,7 @@ export function AiImageGenerator() {
                 isActive={task.id === activeTaskId}
                 onClick={() => setActiveTaskId(task.id)}
                 onRemove={() => removeTask(task.id)}
+                onPreview={imageUrl => setPreviewImage(imageUrl)}
                 onMjAction={engine === 'midjourney' ? handleMjAction : undefined}
               />
             ))}
@@ -188,6 +198,12 @@ export function AiImageGenerator() {
           <p className="text-sm mt-1">输入描述文字，选择引擎开始生成</p>
         </div>
       )}
+
+      {/* 图片预览弹窗 */}
+      <ImagePreviewModal
+        imageUrl={previewImage}
+        onClose={() => setPreviewImage(null)}
+      />
     </div>
   )
 }

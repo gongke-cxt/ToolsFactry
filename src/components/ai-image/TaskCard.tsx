@@ -9,6 +9,7 @@ interface TaskCardProps {
   isActive: boolean
   onClick: () => void
   onRemove: () => void
+  onPreview?: (imageUrl: string) => void
   onMjAction?: (taskId: string, action: string) => void
 }
 
@@ -31,7 +32,7 @@ function downloadImage(url: string, filename: string) {
   document.body.removeChild(a)
 }
 
-export function TaskCard({ task, isActive, onClick, onRemove, onMjAction }: TaskCardProps) {
+export function TaskCard({ task, isActive, onClick, onRemove, onPreview, onMjAction }: TaskCardProps) {
   const s = statusConfig[task.status] || statusConfig.idle
 
   return (
@@ -110,7 +111,7 @@ export function TaskCard({ task, isActive, onClick, onRemove, onMjAction }: Task
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
-                onClick={e => { e.stopPropagation(); window.open(task.imageUrl, '_blank') }}
+                onClick={e => { e.stopPropagation(); onPreview?.(task.imageUrl) }}
               >
                 <Maximize2 className="h-3.5 w-3.5" />
               </Button>

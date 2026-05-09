@@ -226,7 +226,9 @@ export function useAiImage() {
       const result = await apiPost('/api/image/generate', {
         engine: 'nanobanana',
         prompt: params.prompt,
-        params: {},
+        params: {
+          referenceImage: params.referenceImage,
+        },
       })
 
       const dataUrl = result.dataUrl as string
@@ -255,6 +257,7 @@ export function useAiImage() {
           prompt,
           aspectRatio: (extra?.aspectRatio as NanoBananaParams['aspectRatio']) || '1:1',
           imageSize: (extra?.imageSize as NanoBananaParams['imageSize']) || '1K',
+          referenceImage: extra?.referenceImage as string | undefined,
         })
     }
   }, [generateMidjourney, generateDoubao, generateNanoBanana])
