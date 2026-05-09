@@ -10,6 +10,7 @@ import { PdfTools } from '@/pages/PdfTools'
 import { DocConverter } from '@/pages/DocConverter'
 import { BatchRename } from '@/pages/BatchRename'
 import { DiffTool } from '@/pages/DiffTool'
+import { AiImageGenerator } from '@/pages/AiImageGenerator'
 import { useTheme } from '@/hooks/useTheme'
 
 function App() {
@@ -18,15 +19,6 @@ function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-gradient-surface relative">
-        <div className="fixed inset-0 pointer-events-none overflow-hidden">
-          <img
-            src="/hero-bg.png"
-            alt=""
-            className="absolute top-0 right-0 w-1/2 h-auto opacity-[0.04] dark:opacity-[0.06] select-none"
-            loading="lazy"
-          />
-        </div>
-
         <Header isDark={isDark} onToggleTheme={toggle} />
 
         <main className="container mx-auto px-4 lg:px-8 py-8 relative">
@@ -42,12 +34,13 @@ function App() {
             <Route path="/doc-sync" element={<DocConverter />} />
             <Route path="/batch-rename" element={<BatchRename />} />
             <Route path="/diff" element={<DiffTool />} />
+            <Route path="/ai-image" element={<AiImageGenerator />} />
           </Routes>
         </main>
 
         <footer className="border-t border-border py-6 mt-12">
           <div className="container mx-auto px-4 lg:px-8 text-center text-xs text-muted-foreground">
-            GKDataToolsFactry - 实用在线工具集
+            GK Tools · 实用在线工具集
           </div>
         </footer>
       </div>
