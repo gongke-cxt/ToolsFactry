@@ -5,6 +5,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { v4 as uuid } from 'uuid'
 import { ensureYtDlp, getVideoInfo, downloadVideo, getDownloadDir } from './ytdlp.js'
+import { getActiveModels } from './models.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -128,6 +129,36 @@ export function createApiRouter(): express.Router {
     res.end()
   })
 
+  // GET /api/models - 获取可用模型列表
+  router.get('/models', async (_req, res) => {
+    try {
+      const models = await getActiveModels()
+      // 不暴露 api_key 给前端，返回脱敏后的数据
+      const safe = models.map((m) => ({
+        providerId: m.providerId,
+        providerName: m.providerName,
+        priority: m.priority,
+        endpoint: m.endpoint,
+        extraConfig: m.extraConfig,
+      }))
+      res.json({ models: safe })
+    } catch (err: any) {
+      console.error('[/api/models] Error:', err.message)
+      res.status(500).json({ error: '获取模型列表失败' })
+    }
+  })
+
+  // GET /api/models/config - 获取模型配置（含 api_key，供后端调用用）
+  router.get('/models/config', async (_req, res) => {
+    try {
+      const models = await getActiveModels()
+      res.json({ models })
+    } catch (err: any) {
+      console.error('[/api/models/config] Error:', err.message)
+      res.status(500).json({ error: '获取模型配置失败' })
+    }
+  })
+
   // GET /api/status - Check yt-dlp availability
   router.get('/status', async (_req, res) => {
     try {
@@ -151,6 +182,21 @@ export async function startServer(port = 3001) {
   // API routes
   app.use('/api', createApiRouter())
 
+  // Production: serve static frontend files
+  const distDir = path.join(__dirname, '..', 'dist')
+  if (fs.existsSync(distDir)) {
+    app.use(express.static(distDir))
+    // SPA fallback: non-API, non-file routes serve index.html (Express 5 compatible)
+    app.use((req, res, next) => {
+      if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.includes('.')) {
+        res.sendFile(path.join(distDir, 'index.html'))
+      } else {
+        next()
+      }
+    })
+    console.log('[server] Serving static files from dist/')
+  }
+
   // Try to ensure yt-dlp on startup
   try {
     const yt = await ensureYtDlp()
@@ -162,8 +208,8 @@ export async function startServer(port = 3001) {
   }
 
   return new Promise<void>((resolve) => {
-    app.listen(port, () => {
-      console.log(`[server] API running on http://localhost:${port}`)
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`[server] Server running on http://0.0.0.0:${port}`)
       resolve()
     })
   })

@@ -109,7 +109,7 @@ export function JsonXmlConverter() {
 
   const handleSample = useCallback(() => {
     const sample = {
-      name: "ToolsFactry",
+      name: "GKDataToolsFactry",
       version: "1.0.0",
       features: ["JSON 转换", "XML 转换", "格式化", "压缩"],
       config: {

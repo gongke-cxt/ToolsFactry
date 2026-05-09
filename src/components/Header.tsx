@@ -1,4 +1,4 @@
-import { Moon, Sun, Wrench, QrCode, ImageDown, Palette, FileCode, Video, ArrowRightLeft, FileText, BookCopy } from 'lucide-react'
+import { Moon, Sun, Wrench, QrCode, ImageDown, Palette, FileCode, Video, ArrowRightLeft, FileText, BookCopy, Files, GitCompare } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,8 @@ const navItems = [
   { to: '/markdown', label: 'Markdown', icon: FileCode },
   { to: '/download', label: '视频下载', icon: Video },
   { to: '/doc-sync', label: '文档互转', icon: BookCopy },
+  { to: '/batch-rename', label: '批量重命名', icon: Files },
+  { to: '/diff', label: '文本对比', icon: GitCompare },
 ]
 
 export function Header({ isDark, onToggleTheme }: HeaderProps) {
@@ -30,7 +32,7 @@ export function Header({ isDark, onToggleTheme }: HeaderProps) {
               <Wrench className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="text-lg font-bold tracking-tight text-foreground hidden sm:block">
-              ToolsFactry
+              GKDataToolsFactry
             </span>
           </NavLink>
 

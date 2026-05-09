@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type {
   ImageEngine,
   GenerateTask,
@@ -19,11 +19,44 @@ function nextId() {
   return `task-${Date.now()}-${++taskIdCounter}`
 }
 
+/** provider_id 到引擎配置的映射 */
+function mapDbModelsToConfig(models: Array<{
+  providerId: string
+  apiKey: string
+  endpoint: string
+  extraConfig: Record<string, unknown>
+}>): Partial<EngineConfig> {
+  const patch: Partial<EngineConfig> = {}
+  for (const m of models) {
+    if (m.providerId === 'jimeng') {
+      patch.doubao = { apiKey: m.apiKey }
+    } else if (m.providerId === 'banana') {
+      patch.nanobanana = { baseUrl: m.endpoint, apiKey: m.apiKey }
+    }
+  }
+  return patch
+}
+
 export function useAiImage() {
   const [tasks, setTasks] = useState<GenerateTask[]>([])
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [config, setConfig] = useState<EngineConfig>(DEFAULT_ENGINE_CONFIG)
   const pollTimers = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
+
+  // 启动时从后端 API 加载数据库中的模型配置
+  useEffect(() => {
+    fetch('/api/models/config')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.models?.length) {
+          const patch = mapDbModelsToConfig(data.models)
+          if (Object.keys(patch).length > 0) {
+            setConfig(prev => ({ ...prev, ...patch }))
+          }
+        }
+      })
+      .catch(() => { /* 静默失败，使用默认配置 */ })
+  }, [])
 
   const updateTask = useCallback((id: string, patch: Partial<GenerateTask>) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...patch } : t))

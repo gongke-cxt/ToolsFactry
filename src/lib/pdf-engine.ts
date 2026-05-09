@@ -1,5 +1,5 @@
 import { PDFDocument, PDFName, PDFString } from 'pdf-lib'
-import type { PdfFileItem, BookmarkItem } from '@/types/pdf'
+import type { PdfFileItem, BookmarkItem, ImageExportOptions } from '@/types/pdf'
 import { saveAs } from 'file-saver'
 
 type PdfjsDoc = {
@@ -176,6 +176,47 @@ export async function addBookmarks(
 export function downloadPdf(bytes: Uint8Array, filename: string) {
   const blob = new Blob([bytes], { type: 'application/pdf' })
   saveAs(blob, filename)
+}
+
+/* ---------- render pages to image blobs ---------- */
+
+export async function renderPageToBlob(
+  buffer: ArrayBuffer,
+  pageIndex: number,
+  options: ImageExportOptions,
+): Promise<Blob> {
+  const pdfjsLib = await getPdfjs()
+  const task = pdfjsLib.getDocument({ data: buffer.slice(0) })
+  const pdf: PdfjsDoc = await task.promise
+  const page = await pdf.getPage(pageIndex + 1)
+  const vp = page.getViewport({ scale: options.scale })
+  const canvas = document.createElement('canvas')
+  canvas.width = vp.width
+  canvas.height = vp.height
+  const ctx = canvas.getContext('2d')!
+  await page.render({ canvasContext: ctx, viewport: vp }).promise
+  pdf.destroy()
+
+  const mimeType = `image/${options.format}`
+  const quality = options.format === 'png' ? undefined : options.quality
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob failed'))),
+      mimeType,
+      quality,
+    )
+  })
+}
+
+export function imageFileName(
+  pdfName: string,
+  pageIndex: number,
+  format: ImageExportOptions['format'],
+): string {
+  const base = pdfName.replace(/\.pdf$/i, '')
+  const ext = format === 'jpeg' ? 'jpg' : format
+  return `${base}_${String(pageIndex + 1).padStart(3, '0')}.${ext}`
 }
 
 /* ---------- format helpers ---------- */

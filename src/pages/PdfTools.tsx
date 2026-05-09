@@ -3,23 +3,42 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { cn } from '@/lib/utils'
 import { MergeView } from '@/components/pdf/MergeView'
 import { EditView } from '@/components/pdf/EditView'
+import { ToImageView } from '@/components/pdf/ToImageView'
 import type { ToolMode } from '@/types/pdf'
-import { Merge, Scissors } from 'lucide-react'
+import { Merge, Scissors, ImageIcon } from 'lucide-react'
 
 const TABS: { mode: ToolMode; label: string; desc: string; icon: typeof Merge }[] = [
   { mode: 'merge', label: '合并 PDF', desc: '将多个 PDF 按顺序合并为一个文件', icon: Merge },
   { mode: 'edit', label: '拆分 & 编辑', desc: '拆分页面、删除页面、重排顺序、添加书签', icon: Scissors },
+  { mode: 'to-image', label: '转图片', desc: 'PDF 页面导出为 PNG / JPG / WebP 图片', icon: ImageIcon },
 ]
+
+const TAB_CONTENT: Record<ToolMode, { title: string; desc: string }> = {
+  merge: {
+    title: '合并多个 PDF 文件',
+    desc: '上传多个 PDF，拖动调整顺序，一键合并下载',
+  },
+  edit: {
+    title: '拆分或编辑 PDF 页面',
+    desc: '上传一个 PDF，选择、删除、重排页面，按范围提取',
+  },
+  'to-image': {
+    title: 'PDF 转图片',
+    desc: '上传一个或多个 PDF，选择页面，导出为高清图片',
+  },
+}
 
 export function PdfTools() {
   const [mode, setMode] = useState<ToolMode>('merge')
+
+  const current = TAB_CONTENT[mode]
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">PDF 工具</h1>
         <p className="text-muted-foreground mt-1">
-          合并、拆分、重排页面 — 全部在浏览器中完成，无需上传到服务器
+          合并、拆分、转图片 — 全部在浏览器中完成，无需上传到服务器
         </p>
       </div>
 
@@ -47,17 +66,13 @@ export function PdfTools() {
 
       <Card className="shadow-elegant">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            {mode === 'merge' ? '合并多个 PDF 文件' : '拆分或编辑 PDF 页面'}
-          </CardTitle>
-          <CardDescription>
-            {mode === 'merge'
-              ? '上传多个 PDF，拖动调整顺序，一键合并下载'
-              : '上传一个 PDF，选择、删除、重排页面，按范围提取'}
-          </CardDescription>
+          <CardTitle className="text-base">{current.title}</CardTitle>
+          <CardDescription>{current.desc}</CardDescription>
         </CardHeader>
         <CardContent>
-          {mode === 'merge' ? <MergeView /> : <EditView />}
+          {mode === 'merge' && <MergeView />}
+          {mode === 'edit' && <EditView />}
+          {mode === 'to-image' && <ToImageView />}
         </CardContent>
       </Card>
     </div>

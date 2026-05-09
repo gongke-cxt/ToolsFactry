@@ -8,6 +8,8 @@ import { VideoDownloader } from '@/pages/VideoDownloader'
 import { JsonXmlConverter } from '@/pages/JsonXmlConverter'
 import { PdfTools } from '@/pages/PdfTools'
 import { DocConverter } from '@/pages/DocConverter'
+import { BatchRename } from '@/pages/BatchRename'
+import { DiffTool } from '@/pages/DiffTool'
 import { useTheme } from '@/hooks/useTheme'
 
 function App() {
@@ -38,12 +40,14 @@ function App() {
             <Route path="/converter" element={<JsonXmlConverter />} />
             <Route path="/pdf" element={<PdfTools />} />
             <Route path="/doc-sync" element={<DocConverter />} />
+            <Route path="/batch-rename" element={<BatchRename />} />
+            <Route path="/diff" element={<DiffTool />} />
           </Routes>
         </main>
 
         <footer className="border-t border-border py-6 mt-12">
           <div className="container mx-auto px-4 lg:px-8 text-center text-xs text-muted-foreground">
-            ToolsFactry - 实用在线工具集
+            GKDataToolsFactry - 实用在线工具集
           </div>
         </footer>
       </div>

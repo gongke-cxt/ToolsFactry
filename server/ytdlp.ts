@@ -1,9 +1,14 @@
-import YTDlpWrap from 'yt-dlp-wrap'
+import { createRequire } from 'module'
 import path from 'path'
+import os from 'os'
 import { fileURLToPath } from 'url'
 
+const require = createRequire(import.meta.url)
+const YTDlpWrap = require('yt-dlp-wrap').default
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const BIN_PATH = path.join(__dirname, '..', 'bin', 'yt-dlp.exe')
+const BIN_NAME = os.platform() === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'
+const BIN_PATH = path.join(__dirname, '..', 'bin', BIN_NAME)
 const DOWNLOAD_DIR = path.join(__dirname, '..', 'downloads')
 
 let ytdlp: YTDlpWrap | null = null
