@@ -9,13 +9,13 @@ import { Sparkles, Loader2, ImagePlus, X } from 'lucide-react'
 interface PromptPanelProps {
   engine: ImageEngine
   isGenerating: boolean
-  referenceImage: string | null
-  onReferenceChange: (image: string | null) => void
+  referenceImages: string[]
+  onReferenceImagesChange: (images: string[]) => void
   onGenerate: (prompt: string) => void
   onDescribe?: (base64: string) => void
 }
 
-export function PromptPanel({ engine, isGenerating, referenceImage, onReferenceChange, onGenerate, onDescribe }: PromptPanelProps) {
+export function PromptPanel({ engine, isGenerating, referenceImages, onReferenceImagesChange, onGenerate, onDescribe }: PromptPanelProps) {
   const [prompt, setPrompt] = useState('')
   const [describeFile, setDescribeFile] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -35,21 +35,28 @@ export function PromptPanel({ engine, isGenerating, referenceImage, onReferenceC
     if (!file) return
     const reader = new FileReader()
     reader.onload = () => {
-      const result = reader.result as string
-      setDescribeFile(result)
+      setDescribeFile(reader.result as string)
     }
     reader.readAsDataURL(file)
   }
 
-  // 参考图处理（拖拽/粘贴）
+  // 参考图处理（拖拽/点击）
+  const addImage = useCallback((dataUrl: string) => {
+    onReferenceImagesChange([...referenceImages, dataUrl])
+  }, [referenceImages, onReferenceImagesChange])
+
+  const removeImage = useCallback((index: number) => {
+    onReferenceImagesChange(referenceImages.filter((_, i) => i !== index))
+  }, [referenceImages, onReferenceImagesChange])
+
   const processFile = useCallback((file: File) => {
     if (!file.type.startsWith('image/')) return
     const reader = new FileReader()
     reader.onload = () => {
-      onReferenceChange(reader.result as string)
+      addImage(reader.result as string)
     }
     reader.readAsDataURL(file)
-  }, [onReferenceChange])
+  }, [addImage])
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -64,8 +71,8 @@ export function PromptPanel({ engine, isGenerating, referenceImage, onReferenceC
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) processFile(file)
+    const files = Array.from(e.dataTransfer.files || [])
+    files.forEach(f => processFile(f))
   }
 
   const currentEngine = ENGINE_OPTIONS.find(e => e.id === engine)
@@ -107,26 +114,38 @@ export function PromptPanel({ engine, isGenerating, referenceImage, onReferenceC
           }}
         />
 
-        {/* 参考图预览 */}
-        {showRefImage && referenceImage && (
-          <div className="px-3 pb-3 flex items-start gap-2 border-t border-border/50 pt-3 mx-3">
-            <div className="relative inline-block shrink-0">
-              <img src={referenceImage} alt="参考图" className="h-16 rounded-md border object-cover" />
-              <button
-                onClick={() => onReferenceChange(null)}
-                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center hover:bg-destructive/80"
-              >
-                <X className="h-3 w-3" />
-              </button>
+        {/* 参考图多张预览 */}
+        {showRefImage && referenceImages.length > 0 && (
+          <div className="px-3 pb-3 space-y-2 border-t border-border/50 pt-3 mx-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <ImagePlus className="h-3.5 w-3.5" />
+              参考图 ({referenceImages.length}) — 拖入/点击添加更多
             </div>
-            <div className="text-xs text-muted-foreground pt-1">
-              参考图已添加，拖拽新图片可替换
+            <div className="flex flex-wrap gap-2">
+              {referenceImages.map((img, i) => (
+                <div key={i} className="relative inline-block shrink-0">
+                  <img src={img} alt={`参考图 ${i + 1}`} className="h-16 w-16 rounded-md border object-cover" />
+                  <button
+                    onClick={() => removeImage(i)}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center hover:bg-destructive/80"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="h-16 w-16 rounded-md border border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary/50 hover:text-primary transition-colors text-muted-foreground"
+              >
+                <ImagePlus className="h-5 w-5" />
+              </button>
             </div>
           </div>
         )}
 
-        {/* 底部工具栏 */}
-        {showRefImage && !referenceImage && (
+        {/* 底部工具栏：无参考图时显示添加按钮 */}
+        {showRefImage && referenceImages.length === 0 && (
           <div className="px-3 pb-2 flex items-center gap-2">
             <input
               ref={fileInputRef}

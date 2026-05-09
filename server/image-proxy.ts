@@ -84,30 +84,43 @@ export async function proxyDoubaoGenerate(
 
 // ─── Nano Banana 2 代理 ───
 
+/** 从 data URL 中提取 { mimeType, base64 } */
+function parseDataUrl(dataUrl: string): { mimeType: string; base64: string } {
+  const match = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/)
+  if (!match) throw new Error('无效的 Data URL 格式')
+  return { mimeType: match[1], base64: match[2] }
+}
+
 export async function proxyNanoBananaGenerate(
   apiKey: string,
   baseUrl: string,
   prompt: string,
   options: {
-    referenceImage?: string
+    referenceImages?: string[]
   } = {},
 ): Promise<string> {
   const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
     { text: prompt },
   ]
 
-  if (options.referenceImage) {
-    parts.push({
-      inlineData: {
-        mimeType: 'image/png',
-        data: options.referenceImage,
-      },
-    })
+  // 添加参考图（data URL → 提取纯 base64）
+  if ((options.referenceImages || []).length > 0) {
+    console.log(`[nanobanana] 处理 ${options.referenceImages!.length} 张参考图`)
+  }
+  for (const dataUrl of (options.referenceImages || [])) {
+    try {
+      const { mimeType, base64 } = parseDataUrl(dataUrl)
+      parts.push({
+        inlineData: { mimeType, data: base64 },
+      })
+    } catch {
+      console.warn('[nanobanana] 跳过无效参考图:', dataUrl.substring(0, 50))
+    }
   }
 
   const endpointPath = '/v1beta/models/gemini-3.1-flash-image-preview:generateContent'
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 180_000)
+  const timeoutId = setTimeout(() => controller.abort(), 300_000)
 
   let res: Response
   try {

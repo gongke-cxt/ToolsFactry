@@ -227,7 +227,7 @@ export function useAiImage() {
         engine: 'nanobanana',
         prompt: params.prompt,
         params: {
-          referenceImage: params.referenceImage,
+          referenceImages: params.referenceImages,
         },
       })
 
@@ -257,7 +257,7 @@ export function useAiImage() {
           prompt,
           aspectRatio: (extra?.aspectRatio as NanoBananaParams['aspectRatio']) || '1:1',
           imageSize: (extra?.imageSize as NanoBananaParams['imageSize']) || '1K',
-          referenceImage: extra?.referenceImage as string | undefined,
+          referenceImages: extra?.referenceImages as string[] | undefined,
         })
     }
   }, [generateMidjourney, generateDoubao, generateNanoBanana])

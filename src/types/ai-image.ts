@@ -124,7 +124,7 @@ export interface NanoBananaParams {
   prompt: string
   aspectRatio: NanoBananaRatio
   imageSize: NanoBananaSize
-  referenceImage?: string
+  referenceImages?: string[]
 }
 
 export const NANO_BANANA_RATIOS: { id: NanoBananaRatio; label: string }[] = [

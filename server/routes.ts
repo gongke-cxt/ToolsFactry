@@ -183,7 +183,7 @@ export function createApiRouter(): express.Router {
         const model = await getModelByProviderId('banana')
         if (!model) { res.status(500).json({ error: 'Nano Banana 模型未配置' }); return }
         const dataUrl = await proxyNanoBananaGenerate(model.apiKey, model.endpoint, prompt, {
-          referenceImage: params?.referenceImage as string | undefined,
+          referenceImages: params?.referenceImages as string[] | undefined,
         })
         res.json({ dataUrl })
       } else {

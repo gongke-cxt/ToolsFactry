@@ -14,7 +14,7 @@ import { ImageIcon, Trash2, Wand2 } from 'lucide-react'
 export function AiImageGenerator() {
   const [engine, setEngine] = useState<ImageEngine>('midjourney')
   const [params, setParams] = useState<Record<string, string>>({})
-  const [referenceImage, setReferenceImage] = useState<string | null>(null)
+  const [referenceImages, setReferenceImages] = useState<string[]>([])
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   const {
@@ -39,9 +39,9 @@ export function AiImageGenerator() {
         botType: (params.botType as 'MID_JOURNEY' | 'niji') || 'MID_JOURNEY',
       })
     } else {
-      await generate(engine, prompt, { ...params, referenceImage: referenceImage || undefined })
+      await generate(engine, prompt, { ...params, referenceImages: referenceImages.length > 0 ? referenceImages : undefined })
     }
-  }, [engine, params, referenceImage, generate, generateMidjourney])
+  }, [engine, params, referenceImages, generate, generateMidjourney])
 
   const handleDescribe = useCallback(async (base64: string) => {
     await mjDescribe(base64)
@@ -85,7 +85,7 @@ export function AiImageGenerator() {
             {ENGINE_OPTIONS.map(opt => (
               <button
                 key={opt.id}
-                onClick={() => { setEngine(opt.id); setParams({}); setReferenceImage(null) }}
+                onClick={() => { setEngine(opt.id); setParams({}); setReferenceImages([]) }}
                 className={cn(
                   'w-full text-left px-3 py-2.5 rounded-lg border transition-smooth',
                   engine === opt.id
@@ -107,8 +107,8 @@ export function AiImageGenerator() {
             <PromptPanel
               engine={engine}
               isGenerating={isGenerating}
-              referenceImage={referenceImage}
-              onReferenceChange={setReferenceImage}
+              referenceImages={referenceImages}
+              onReferenceImagesChange={setReferenceImages}
               onGenerate={handleGenerate}
               onDescribe={handleDescribe}
             />
