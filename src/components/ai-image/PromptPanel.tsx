@@ -4,7 +4,7 @@ import { ENGINE_OPTIONS } from '@/types/ai-image'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { Sparkles, Loader2, ImagePlus, X } from 'lucide-react'
+import { Sparkles, Loader2, ImagePlus, X, FileSearch } from 'lucide-react'
 
 interface PromptPanelProps {
   engine: ImageEngine
@@ -17,30 +17,19 @@ interface PromptPanelProps {
 
 export function PromptPanel({ engine, isGenerating, referenceImages, onReferenceImagesChange, onGenerate, onDescribe }: PromptPanelProps) {
   const [prompt, setPrompt] = useState('')
-  const [describeFile, setDescribeFile] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleSubmit = () => {
-    if (!prompt.trim() && !describeFile) return
-    if (engine === 'midjourney' && describeFile) {
-      onDescribe?.(describeFile)
+    if (!prompt.trim() && referenceImages.length === 0) return
+    // Midjourney: 有参考图 → 图生文 (Describe)，无参考图 → 文生图 (Imagine)
+    if (engine === 'midjourney' && referenceImages.length > 0) {
+      onDescribe?.(referenceImages[0])
     } else {
       onGenerate(prompt.trim())
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      setDescribeFile(reader.result as string)
-    }
-    reader.readAsDataURL(file)
-  }
-
-  // 参考图处理（拖拽/点击）
   const addImage = useCallback((dataUrl: string) => {
     onReferenceImagesChange([...referenceImages, dataUrl])
   }, [referenceImages, onReferenceImagesChange])
@@ -57,6 +46,21 @@ export function PromptPanel({ engine, isGenerating, referenceImages, onReference
     }
     reader.readAsDataURL(file)
   }, [addImage])
+
+  // 重置并触发 file input（解决重复选同一文件不触发 onChange 的问题）
+  const triggerFileInput = () => {
+    const input = fileInputRef.current
+    if (input) {
+      input.value = ''
+      input.click()
+    }
+  }
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    files.forEach(f => processFile(f))
+    e.target.value = ''
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -76,7 +80,7 @@ export function PromptPanel({ engine, isGenerating, referenceImages, onReference
   }
 
   const currentEngine = ENGINE_OPTIONS.find(e => e.id === engine)
-  const showRefImage = engine === 'nanobanana' || engine === 'doubao'
+  const showRefImage = engine === 'nanobanana' || engine === 'midjourney'
 
   return (
     <div className="space-y-4">
@@ -85,7 +89,17 @@ export function PromptPanel({ engine, isGenerating, referenceImages, onReference
         <span>当前引擎: <strong className="text-foreground">{currentEngine?.label}</strong> - {currentEngine?.desc}</span>
       </div>
 
-      {/* 拖拽参考图区域 */}
+      {/* 隐藏的 file input，始终渲染以保持 ref 有效 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileInputChange}
+        className="hidden"
+      />
+
+      {/* 拖拽区域（所有引擎通用） */}
       <div
         className={cn(
           'relative border-2 border-dashed rounded-lg transition-colors',
@@ -99,7 +113,7 @@ export function PromptPanel({ engine, isGenerating, referenceImages, onReference
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-primary/10 rounded-lg pointer-events-none">
             <div className="flex flex-col items-center gap-2 text-primary">
               <ImagePlus className="h-8 w-8" />
-              <span className="text-sm font-medium">松开以添加参考图</span>
+              <span className="text-sm font-medium">松开以添加图片</span>
             </div>
           </div>
         )}
@@ -114,17 +128,17 @@ export function PromptPanel({ engine, isGenerating, referenceImages, onReference
           }}
         />
 
-        {/* 参考图多张预览 */}
+        {/* 已添加图片预览 */}
         {showRefImage && referenceImages.length > 0 && (
           <div className="px-3 pb-3 space-y-2 border-t border-border/50 pt-3 mx-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <ImagePlus className="h-3.5 w-3.5" />
-              参考图 ({referenceImages.length}) — 拖入/点击添加更多
+              {engine === 'midjourney' ? 'Describe 图片' : '参考图'} ({referenceImages.length}) — 拖入/点击添加更多
             </div>
             <div className="flex flex-wrap gap-2">
               {referenceImages.map((img, i) => (
                 <div key={i} className="relative inline-block shrink-0">
-                  <img src={img} alt={`参考图 ${i + 1}`} className="h-16 w-16 rounded-md border object-cover" />
+                  <img src={img} alt={`图片 ${i + 1}`} className="h-16 w-16 rounded-md border object-cover" />
                   <button
                     onClick={() => removeImage(i)}
                     className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center hover:bg-destructive/80"
@@ -135,7 +149,7 @@ export function PromptPanel({ engine, isGenerating, referenceImages, onReference
               ))}
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={triggerFileInput}
                 className="h-16 w-16 rounded-md border border-dashed border-muted-foreground/30 flex items-center justify-center hover:border-primary/50 hover:text-primary transition-colors text-muted-foreground"
               >
                 <ImagePlus className="h-5 w-5" />
@@ -144,59 +158,25 @@ export function PromptPanel({ engine, isGenerating, referenceImages, onReference
           </div>
         )}
 
-        {/* 底部工具栏：无参考图时显示添加按钮 */}
+        {/* 底部工具栏：无图片时显示添加按钮 */}
         {showRefImage && referenceImages.length === 0 && (
           <div className="px-3 pb-2 flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) processFile(file)
-              }}
-              className="hidden"
-            />
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={triggerFileInput}
               className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               <ImagePlus className="h-3.5 w-3.5" />
-              添加参考图
+              {engine === 'midjourney' ? '选择图片 (Describe 图生文)' : '添加参考图'}
             </button>
           </div>
         )}
       </div>
 
-      {/* Midjourney Describe: 图片上传 */}
-      {engine === 'midjourney' && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-foreground">图生文 (Describe) - 上传图片获取描述</label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-smooth"
-          />
-          {describeFile && (
-            <div className="relative inline-block">
-              <img src={describeFile} alt="上传预览" className="h-20 rounded-md border" />
-              <button
-                onClick={() => setDescribeFile(null)}
-                className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center"
-              >
-                x
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="flex items-center gap-3">
         <Button
           onClick={handleSubmit}
-          disabled={isGenerating || (!prompt.trim() && !describeFile)}
+          disabled={isGenerating || (!prompt.trim() && referenceImages.length === 0)}
           className={cn('gap-2', isGenerating && 'animate-pulse')}
         >
           {isGenerating ? (
@@ -206,8 +186,16 @@ export function PromptPanel({ engine, isGenerating, referenceImages, onReference
             </>
           ) : (
             <>
-              <Sparkles className="h-4 w-4" />
-              {describeFile && engine === 'midjourney' ? '图生文' : '生成图片'}
+              {engine === 'midjourney' && referenceImages.length > 0 ? (
+                <FileSearch className="h-4 w-4" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {engine === 'midjourney' && referenceImages.length > 0
+                ? '图生文 (Describe)'
+                : referenceImages.length > 0
+                  ? '图生图'
+                  : '生成图片'}
             </>
           )}
         </Button>

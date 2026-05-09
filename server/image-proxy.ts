@@ -58,6 +58,14 @@ export async function proxyDoubaoGenerate(
   const size = options.size || '2K'
   const responseFormat = options.responseFormat || 'url'
 
+  const body: Record<string, unknown> = {
+    model,
+    prompt,
+    size,
+    response_format: responseFormat,
+  }
+
+  // 豆包支持参考图但不支持 base64 image 参数，通过 prompt 整合参考图意图
   const url = `${endpoint}${imageGeneratePath}`
   const res = await fetch(url, {
     method: 'POST',
@@ -65,12 +73,7 @@ export async function proxyDoubaoGenerate(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model,
-      prompt,
-      size,
-      response_format: responseFormat,
-    }),
+    body: JSON.stringify(body),
   })
 
   if (!res.ok) {
