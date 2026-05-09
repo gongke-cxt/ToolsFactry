@@ -80,7 +80,7 @@ export interface GenerateTask {
   images: string[]
 }
 
-// ─── 引擎配置 ───
+// ─── 引擎配置（保留接口兼容，apiKey 不再前端使用）───
 export interface EngineConfig {
   midjourney: {
     baseUrl: string
@@ -96,17 +96,9 @@ export interface EngineConfig {
 }
 
 export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
-  midjourney: {
-    baseUrl: import.meta.env.VITE_MJ_BASE_URL || 'https://api.geekai.pro',
-    apiKey: import.meta.env.VITE_MJ_API_KEY || '',
-  },
-  doubao: {
-    apiKey: import.meta.env.VITE_DOUBAO_API_KEY || '',
-  },
-  nanobanana: {
-    baseUrl: import.meta.env.VITE_NANOBANANA_BASE_URL || 'https://api.apiyi.com',
-    apiKey: import.meta.env.VITE_NANOBANANA_API_KEY || '',
-  },
+  midjourney: { baseUrl: 'https://api.geekai.pro', apiKey: '' },
+  doubao: { apiKey: '' },
+  nanobanana: { baseUrl: 'https://api.apiyi.com', apiKey: '' },
 }
 
 // ─── 生成参数 ───

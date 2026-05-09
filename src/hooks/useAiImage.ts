@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type {
   ImageEngine,
   GenerateTask,
@@ -6,57 +6,37 @@ import type {
   MidjourneyParams,
   DoubaoParams,
   NanoBananaParams,
-  EngineConfig,
   MjTask,
 } from '@/types/ai-image'
-import { DEFAULT_ENGINE_CONFIG } from '@/types/ai-image'
-import { mjSubmitImagine, mjFetchTask, mjSubmitSimpleChange, mjSubmitDescribe } from '@/lib/ai-image/midjourney'
-import { doubaoGenerate } from '@/lib/ai-image/doubao'
-import { nanoBananaGenerate } from '@/lib/ai-image/nanobanana'
 
 let taskIdCounter = 0
 function nextId() {
   return `task-${Date.now()}-${++taskIdCounter}`
 }
 
-/** provider_id 到引擎配置的映射 */
-function mapDbModelsToConfig(models: Array<{
-  providerId: string
-  apiKey: string
-  endpoint: string
-  extraConfig: Record<string, unknown>
-}>): Partial<EngineConfig> {
-  const patch: Partial<EngineConfig> = {}
-  for (const m of models) {
-    if (m.providerId === 'jimeng') {
-      patch.doubao = { apiKey: m.apiKey }
-    } else if (m.providerId === 'banana') {
-      patch.nanobanana = { baseUrl: m.endpoint, apiKey: m.apiKey }
-    }
-  }
-  return patch
+/** 通用后端请求封装 */
+async function apiPost(path: string, body: unknown) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  return data
+}
+
+async function apiGet(path: string) {
+  const res = await fetch(path)
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  return data
 }
 
 export function useAiImage() {
   const [tasks, setTasks] = useState<GenerateTask[]>([])
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
-  const [config, setConfig] = useState<EngineConfig>(DEFAULT_ENGINE_CONFIG)
   const pollTimers = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
-
-  // 启动时从后端 API 加载数据库中的模型配置
-  useEffect(() => {
-    fetch('/api/models/config')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data?.models?.length) {
-          const patch = mapDbModelsToConfig(data.models)
-          if (Object.keys(patch).length > 0) {
-            setConfig(prev => ({ ...prev, ...patch }))
-          }
-        }
-      })
-      .catch(() => { /* 静默失败，使用默认配置 */ })
-  }, [])
 
   const updateTask = useCallback((id: string, patch: Partial<GenerateTask>) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, ...patch } : t))
@@ -76,11 +56,12 @@ export function useAiImage() {
     }
   }, [])
 
-  const startMjPolling = useCallback((internalId: string, mjTaskId: string, engineCfg: { baseUrl: string; apiKey: string }) => {
+  // Midjourney 轮询 — 通过后端代理
+  const startMjPolling = useCallback((internalId: string, mjTaskId: string) => {
     stopPolling(internalId)
     const timer = setInterval(async () => {
       try {
-        const mjTask: MjTask = await mjFetchTask(engineCfg.apiKey, mjTaskId, engineCfg.baseUrl)
+        const mjTask: MjTask = await apiGet(`/api/image/mj-task/${mjTaskId}`)
 
         let status: TaskStatus = 'processing'
         if (mjTask.status === 'SUCCESS') status = 'success'
@@ -112,82 +93,57 @@ export function useAiImage() {
 
   // ─── Midjourney 文生图 ───
   const generateMidjourney = useCallback(async (params: MidjourneyParams) => {
-    const { baseUrl, apiKey } = config.midjourney
-    if (!apiKey) throw new Error('请先配置 Midjourney API Key')
-
     const id = nextId()
     addTask({
-      id,
-      engine: 'midjourney',
-      status: 'submitting',
-      prompt: params.prompt,
-      progress: '',
-      imageUrl: '',
-      error: '',
-      createdAt: Date.now(),
-      images: [],
+      id, engine: 'midjourney', status: 'submitting', prompt: params.prompt,
+      progress: '', imageUrl: '', error: '', createdAt: Date.now(), images: [],
     })
 
     try {
-      const resp = await mjSubmitImagine(apiKey, params.prompt, baseUrl, {
-        base64Array: params.base64Array,
-        botType: params.botType,
+      const resp = await apiPost('/api/image/generate', {
+        engine: 'midjourney',
+        prompt: params.prompt,
+        params: { base64Array: params.base64Array, botType: params.botType },
       })
 
       if (resp.code === 1 && resp.result) {
         updateTask(id, { status: 'queued', mjTask: { id: resp.result } as MjTask })
-        startMjPolling(id, resp.result, { baseUrl, apiKey })
-        return id
+        startMjPolling(id, resp.result)
       } else if (resp.code === 22) {
         updateTask(id, { status: 'queued', progress: '排队中...' })
-        if (resp.result) startMjPolling(id, resp.result, { baseUrl, apiKey })
-        return id
+        if (resp.result) startMjPolling(id, resp.result)
       } else if (resp.code === 23) {
         updateTask(id, { status: 'failure', error: '队列已满，请稍后重试' })
-        return id
       } else if (resp.code === 24) {
         updateTask(id, { status: 'failure', error: 'Prompt 可能包含敏感词' })
-        return id
       } else {
         updateTask(id, { status: 'failure', error: resp.description || '提交失败' })
-        return id
       }
+      return id
     } catch (e) {
       updateTask(id, { status: 'failure', error: e instanceof Error ? e.message : '提交失败' })
       return id
     }
-  }, [config, addTask, updateTask, startMjPolling])
+  }, [addTask, updateTask, startMjPolling])
 
   // ─── Midjourney 变更操作 (U1-U4, V1-V4, R) ───
   const mjChange = useCallback(async (sourceTaskId: string, action: string) => {
-    const { baseUrl, apiKey } = config.midjourney
-    if (!apiKey) throw new Error('请先配置 Midjourney API Key')
-
-    // 找到源任务获取 mjTaskId
     const sourceTask = tasks.find(t => t.id === sourceTaskId)
     const mjTaskId = sourceTask?.mjTask?.id
     if (!mjTaskId) throw new Error('找不到源任务')
 
     const id = nextId()
     addTask({
-      id,
-      engine: 'midjourney',
-      status: 'submitting',
-      prompt: `${action} from ${sourceTask.prompt}`,
-      progress: '',
-      imageUrl: '',
-      error: '',
-      createdAt: Date.now(),
-      images: [],
+      id, engine: 'midjourney', status: 'submitting', prompt: `${action} from ${sourceTask.prompt}`,
+      progress: '', imageUrl: '', error: '', createdAt: Date.now(), images: [],
     })
 
     try {
-      const resp = await mjSubmitSimpleChange(apiKey, mjTaskId, action, baseUrl)
+      const resp = await apiPost('/api/image/mj-change', { taskId: mjTaskId, action })
       if (resp.code === 1 && resp.result) {
         updateTask(id, { status: 'queued' })
-        startMjPolling(id, resp.result, { baseUrl, apiKey })
+        startMjPolling(id, resp.result)
       } else if (resp.code === 21 && resp.properties) {
-        // 任务已存在，直接获取结果
         const props = resp.properties as { status?: string; imageUrl?: string }
         updateTask(id, {
           status: props.status === 'SUCCESS' ? 'success' : 'processing',
@@ -202,31 +158,21 @@ export function useAiImage() {
       updateTask(id, { status: 'failure', error: e instanceof Error ? e.message : '操作失败' })
       return id
     }
-  }, [config, tasks, addTask, updateTask, startMjPolling])
+  }, [tasks, addTask, updateTask, startMjPolling])
 
   // ─── Midjourney 图生文 (Describe) ───
   const mjDescribe = useCallback(async (base64Image: string) => {
-    const { baseUrl, apiKey } = config.midjourney
-    if (!apiKey) throw new Error('请先配置 Midjourney API Key')
-
     const id = nextId()
     addTask({
-      id,
-      engine: 'midjourney',
-      status: 'submitting',
-      prompt: '[Describe] 图生文',
-      progress: '',
-      imageUrl: '',
-      error: '',
-      createdAt: Date.now(),
-      images: [],
+      id, engine: 'midjourney', status: 'submitting', prompt: '[Describe] 图生文',
+      progress: '', imageUrl: '', error: '', createdAt: Date.now(), images: [],
     })
 
     try {
-      const resp = await mjSubmitDescribe(apiKey, base64Image, baseUrl)
+      const resp = await apiPost('/api/image/mj-describe', { base64: base64Image })
       if (resp.code === 1 && resp.result) {
         updateTask(id, { status: 'queued' })
-        startMjPolling(id, resp.result, { baseUrl, apiKey })
+        startMjPolling(id, resp.result)
       } else {
         updateTask(id, { status: 'failure', error: resp.description || '提交失败' })
       }
@@ -235,88 +181,62 @@ export function useAiImage() {
       updateTask(id, { status: 'failure', error: e instanceof Error ? e.message : '提交失败' })
       return id
     }
-  }, [config, addTask, updateTask, startMjPolling])
+  }, [addTask, updateTask, startMjPolling])
 
   // ─── 豆包 Seedream 文生图 ───
   const generateDoubao = useCallback(async (params: DoubaoParams) => {
-    const { apiKey } = config.doubao
-    if (!apiKey) throw new Error('请先配置豆包 API Key')
-
     const id = nextId()
     addTask({
-      id,
-      engine: 'doubao',
-      status: 'submitting',
-      prompt: params.prompt,
-      progress: '',
-      imageUrl: '',
-      error: '',
-      createdAt: Date.now(),
-      images: [],
+      id, engine: 'doubao', status: 'submitting', prompt: params.prompt,
+      progress: '', imageUrl: '', error: '', createdAt: Date.now(), images: [],
     })
 
     try {
-      const results = await doubaoGenerate(apiKey, params.prompt, {
-        size: params.size,
-        responseFormat: params.responseFormat,
-        model: params.model,
+      const result = await apiPost('/api/image/generate', {
+        engine: 'doubao',
+        prompt: params.prompt,
+        params: { size: params.size, responseFormat: params.responseFormat, model: params.model },
       })
 
+      const results = (result.data || []) as Array<{ url?: string; b64_json?: string }>
       const images = results.map(r => {
         if (r.url) return r.url
         if (r.b64_json) return `data:image/png;base64,${r.b64_json}`
         return ''
       }).filter(Boolean)
 
-      updateTask(id, {
-        status: 'success',
-        images,
-        imageUrl: images[0] || '',
-      })
+      updateTask(id, { status: 'success', images, imageUrl: images[0] || '' })
       return id
     } catch (e) {
       updateTask(id, { status: 'failure', error: e instanceof Error ? e.message : '生成失败' })
       return id
     }
-  }, [config, addTask, updateTask])
+  }, [addTask, updateTask])
 
   // ─── Nano Banana 2 文生图 ───
   const generateNanoBanana = useCallback(async (params: NanoBananaParams) => {
-    const { baseUrl, apiKey } = config.nanobanana
-    if (!apiKey) throw new Error('请先配置 Nano Banana API Key')
-
     const id = nextId()
     addTask({
-      id,
-      engine: 'nanobanana',
-      status: 'submitting',
-      prompt: params.prompt,
-      progress: '',
-      imageUrl: '',
-      error: '',
-      createdAt: Date.now(),
-      images: [],
+      id, engine: 'nanobanana', status: 'submitting', prompt: params.prompt,
+      progress: '', imageUrl: '', error: '', createdAt: Date.now(), images: [],
     })
 
     try {
       updateTask(id, { status: 'processing', progress: '生成中...' })
-      const dataUrl = await nanoBananaGenerate(apiKey, params.prompt, {
-        aspectRatio: params.aspectRatio,
-        imageSize: params.imageSize,
-        baseUrl,
+      const result = await apiPost('/api/image/generate', {
+        engine: 'nanobanana',
+        prompt: params.prompt,
+        params: {},
       })
 
-      updateTask(id, {
-        status: 'success',
-        images: [dataUrl],
-        imageUrl: dataUrl,
-      })
+      const dataUrl = result.dataUrl as string
+      updateTask(id, { status: 'success', images: [dataUrl], imageUrl: dataUrl })
       return id
     } catch (e) {
       updateTask(id, { status: 'failure', error: e instanceof Error ? e.message : '生成失败' })
       return id
     }
-  }, [config, addTask, updateTask])
+  }, [addTask, updateTask])
 
   // ─── 通用生成入口 ───
   const generate = useCallback(async (engine: ImageEngine, prompt: string, extra?: Record<string, unknown>) => {
@@ -354,19 +274,8 @@ export function useAiImage() {
   const activeTask = tasks.find(t => t.id === activeTaskId) || null
 
   return {
-    tasks,
-    activeTask,
-    activeTaskId,
-    setActiveTaskId,
-    config,
-    setConfig,
-    generate,
-    generateMidjourney,
-    generateDoubao,
-    generateNanoBanana,
-    mjChange,
-    mjDescribe,
-    removeTask,
-    clearTasks,
+    tasks, activeTask, activeTaskId, setActiveTaskId,
+    generate, generateMidjourney, generateDoubao, generateNanoBanana,
+    mjChange, mjDescribe, removeTask, clearTasks,
   }
 }

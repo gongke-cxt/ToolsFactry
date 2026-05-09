@@ -5,24 +5,20 @@ import { useAiImage } from '@/hooks/useAiImage'
 import { PromptPanel } from '@/components/ai-image/PromptPanel'
 import { EngineParams } from '@/components/ai-image/EngineParams'
 import { TaskCard } from '@/components/ai-image/TaskCard'
-import { ConfigPanel } from '@/components/ai-image/ConfigPanel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { ImageIcon, Settings2, Trash2, Wand2 } from 'lucide-react'
+import { ImageIcon, Trash2, Wand2 } from 'lucide-react'
 
 export function AiImageGenerator() {
   const [engine, setEngine] = useState<ImageEngine>('midjourney')
   const [params, setParams] = useState<Record<string, string>>({})
-  const [showConfig, setShowConfig] = useState(false)
 
   const {
     tasks,
     activeTask,
     activeTaskId,
     setActiveTaskId,
-    config,
-    setConfig,
     generate,
     generateMidjourney,
     mjChange,
@@ -72,17 +68,8 @@ export function AiImageGenerator() {
               清空全部
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setShowConfig(!showConfig)} className="gap-1.5">
-            <Settings2 className="h-4 w-4" />
-            {showConfig ? '隐藏配置' : 'API 配置'}
-          </Button>
         </div>
       </div>
-
-      {/* API 配置面板 */}
-      {showConfig && (
-        <ConfigPanel config={config} onChange={setConfig} />
-      )}
 
       {/* 引擎选择 + 参数 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

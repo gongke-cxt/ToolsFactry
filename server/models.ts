@@ -43,7 +43,7 @@ export async function getActiveModels(): Promise<ModelProvider[]> {
   )
   return rows.map((r) => ({
     id: r.id as number,
-    providerId: r.provider_id as string,
+    providerId: (r.provider_id as string).trim(),
     providerName: r.provider_name as string,
     priority: r.priority as number,
     status: r.status as 'active' | 'inactive',
@@ -53,4 +53,25 @@ export async function getActiveModels(): Promise<ModelProvider[]> {
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   }))
+}
+
+export async function getModelByProviderId(providerId: string): Promise<ModelProvider | null> {
+  const [rows] = await getPool().query<RowDataPacket[]>(
+    'SELECT * FROM model_providers WHERE provider_id = ? AND status = ? LIMIT 1',
+    [providerId, 'active'],
+  )
+  if (!rows.length) return null
+  const r = rows[0]
+  return {
+    id: r.id as number,
+    providerId: (r.provider_id as string).trim(),
+    providerName: r.provider_name as string,
+    priority: r.priority as number,
+    status: r.status as 'active' | 'inactive',
+    apiKey: r.api_key as string,
+    endpoint: r.endpoint as string,
+    extraConfig: typeof r.extra_config === 'string' ? JSON.parse(r.extra_config) : (r.extra_config as Record<string, unknown>),
+    createdAt: r.created_at as string,
+    updatedAt: r.updated_at as string,
+  }
 }

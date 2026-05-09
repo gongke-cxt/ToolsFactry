@@ -5,7 +5,8 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { v4 as uuid } from 'uuid'
 import { ensureYtDlp, getVideoInfo, downloadVideo, getDownloadDir } from './ytdlp.js'
-import { getActiveModels } from './models.js'
+import { getActiveModels, getModelByProviderId } from './models.js'
+import { proxyMjSubmit, proxyMjFetchTask, proxyDoubaoGenerate, proxyNanoBananaGenerate } from './image-proxy.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -129,11 +130,10 @@ export function createApiRouter(): express.Router {
     res.end()
   })
 
-  // GET /api/models - 获取可用模型列表
+  // GET /api/models - 获取可用模型列表（脱敏，无 api_key）
   router.get('/models', async (_req, res) => {
     try {
       const models = await getActiveModels()
-      // 不暴露 api_key 给前端，返回脱敏后的数据
       const safe = models.map((m) => ({
         providerId: m.providerId,
         providerName: m.providerName,
@@ -148,14 +148,98 @@ export function createApiRouter(): express.Router {
     }
   })
 
-  // GET /api/models/config - 获取模型配置（含 api_key，供后端调用用）
-  router.get('/models/config', async (_req, res) => {
+  // ─── AI 图片生成代理路由（API Key 不出后端）───
+
+  // POST /api/image/generate - 通用生成入口
+  router.post('/image/generate', async (req, res) => {
     try {
-      const models = await getActiveModels()
-      res.json({ models })
+      const { engine, prompt, params } = req.body as {
+        engine: string; prompt: string; params?: Record<string, unknown>
+      }
+      if (!engine || !prompt) { res.status(400).json({ error: 'Missing engine or prompt' }); return }
+
+      if (engine === 'midjourney') {
+        const apiKey = process.env.MJ_API_KEY || ''
+        const baseUrl = process.env.MJ_BASE_URL || 'https://api.geekai.pro'
+        if (!apiKey) { res.status(500).json({ error: 'Midjourney 未配置' }); return }
+        const result = await proxyMjSubmit(apiKey, baseUrl, '/mj/submit/imagine', {
+          prompt,
+          base64Array: (params?.base64Array as string[]) || [],
+          botType: (params?.botType as string) || 'MID_JOURNEY',
+        })
+        res.json(result)
+      } else if (engine === 'doubao') {
+        const model = await getModelByProviderId('jimeng')
+        if (!model) { res.status(500).json({ error: '豆包模型未配置' }); return }
+        const cfg = (model.extraConfig || {}) as Record<string, string>
+        const results = await proxyDoubaoGenerate(
+          model.apiKey, model.endpoint,
+          cfg.imageGeneratePath || '/images/generations',
+          prompt,
+          { model: cfg.model || 'doubao-seedream-4-0-250828', size: (params?.size as string) || '2K', responseFormat: (params?.responseFormat as string) || 'url' },
+        )
+        res.json({ data: results })
+      } else if (engine === 'nanobanana') {
+        const model = await getModelByProviderId('banana')
+        if (!model) { res.status(500).json({ error: 'Nano Banana 模型未配置' }); return }
+        const dataUrl = await proxyNanoBananaGenerate(model.apiKey, model.endpoint, prompt, {
+          referenceImage: params?.referenceImage as string | undefined,
+        })
+        res.json({ dataUrl })
+      } else {
+        res.status(400).json({ error: `Unknown engine: ${engine}` })
+      }
     } catch (err: any) {
-      console.error('[/api/models/config] Error:', err.message)
-      res.status(500).json({ error: '获取模型配置失败' })
+      console.error('[/api/image/generate] Error:', err.message)
+      res.status(500).json({ error: err.message || '生成失败' })
+    }
+  })
+
+  // GET /api/image/mj-task/:taskId - 查询 Midjourney 任务状态
+  router.get('/image/mj-task/:taskId', async (req, res) => {
+    try {
+      const apiKey = process.env.MJ_API_KEY || ''
+      const baseUrl = process.env.MJ_BASE_URL || 'https://api.geekai.pro'
+      if (!apiKey) { res.status(500).json({ error: 'Midjourney 未配置' }); return }
+      const result = await proxyMjFetchTask(apiKey, baseUrl, req.params.taskId)
+      res.json(result)
+    } catch (err: any) {
+      console.error('[/api/image/mj-task] Error:', err.message)
+      res.status(500).json({ error: err.message || '查询失败' })
+    }
+  })
+
+  // POST /api/image/mj-change - Midjourney U/V/R 操作
+  router.post('/image/mj-change', async (req, res) => {
+    try {
+      const { taskId, action } = req.body as { taskId: string; action: string }
+      if (!taskId || !action) { res.status(400).json({ error: 'Missing taskId or action' }); return }
+      const apiKey = process.env.MJ_API_KEY || ''
+      const baseUrl = process.env.MJ_BASE_URL || 'https://api.geekai.pro'
+      if (!apiKey) { res.status(500).json({ error: 'Midjourney 未配置' }); return }
+      const result = await proxyMjSubmit(apiKey, baseUrl, '/mj/submit/simple-change', {
+        content: `${taskId} ${action}`,
+      })
+      res.json(result)
+    } catch (err: any) {
+      console.error('[/api/image/mj-change] Error:', err.message)
+      res.status(500).json({ error: err.message || '操作失败' })
+    }
+  })
+
+  // POST /api/image/mj-describe - Midjourney 图生文
+  router.post('/image/mj-describe', async (req, res) => {
+    try {
+      const { base64 } = req.body as { base64: string }
+      if (!base64) { res.status(400).json({ error: 'Missing base64' }); return }
+      const apiKey = process.env.MJ_API_KEY || ''
+      const baseUrl = process.env.MJ_BASE_URL || 'https://api.geekai.pro'
+      if (!apiKey) { res.status(500).json({ error: 'Midjourney 未配置' }); return }
+      const result = await proxyMjSubmit(apiKey, baseUrl, '/mj/submit/describe', { base64 })
+      res.json(result)
+    } catch (err: any) {
+      console.error('[/api/image/mj-describe] Error:', err.message)
+      res.status(500).json({ error: err.message || '提交失败' })
     }
   })
 
