@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react'
-import { QrCode, Layers } from 'lucide-react'
+import { QrCode, Layers, ScanLine } from 'lucide-react'
 import { InputSection } from '@/components/InputSection'
 import { StyleSection } from '@/components/StyleSection'
 import { PreviewSection } from '@/components/PreviewSection'
 import { BatchSection } from '@/components/BatchSection'
+import { QRScanner } from '@/components/qr/QRScanner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import {
@@ -12,7 +13,7 @@ import {
   type QRInputType, type QRStyleConfig, type ContactData, type WiFiData,
 } from '@/types'
 
-type SubTab = 'single' | 'batch'
+type SubTab = 'single' | 'batch' | 'scan'
 
 export function QRGenerator() {
   const [subTab, setSubTab] = useState<SubTab>('single')
@@ -68,9 +69,23 @@ export function QRGenerator() {
           <Layers className="h-4 w-4" />
           批量生成
         </button>
+        <button
+          onClick={() => setSubTab('scan')}
+          className={cn(
+            "flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-smooth cursor-pointer",
+            subTab === 'scan'
+              ? "bg-gradient-primary text-primary-foreground shadow-glow"
+              : "bg-card text-muted-foreground border border-border hover:text-foreground"
+          )}
+        >
+          <ScanLine className="h-4 w-4" />
+          识别
+        </button>
       </div>
 
-      {subTab === 'single' ? (
+      {subTab === 'scan' ? (
+        <QRScanner />
+      ) : subTab === 'single' ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-5 space-y-6">
             <Card className="shadow-elegant">
